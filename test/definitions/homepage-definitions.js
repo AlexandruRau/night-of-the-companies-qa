@@ -53,10 +53,6 @@ When(/^I press the "([^"]*)" key$/, async function (key) {
   await browser.pause(1000);
 });
 
-Then(/^I wait for her to wake up$/, async function () {
-  await HomePage.ioanaWakeUp();
-});
-
 When(
   /^I send a API request with the following params:$/,
   async function (dataTable) {
@@ -66,13 +62,13 @@ When(
 );
 
 Then(/^I validate that the response code is "([^"]*)"$/, function (code) {
-  GenericApiActions.validateApiResponseCode(code);
+  HomePage.validateApiResponseCode(code);
 });
 
 Then(
   /^I validate that the value of the "([^"]*)" property is "([^"]*)" ?(in the json at index "([^"]*)"?)?$/,
   function (propertyName, expectedValue, index) {
-    GenericApiActions.validatePropertyHasSpecificValue(
+    HomePage.validatePropertyHasSpecificValue(
       propertyName,
       expectedValue,
       index

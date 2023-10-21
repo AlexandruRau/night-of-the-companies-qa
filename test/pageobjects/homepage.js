@@ -1,3 +1,8 @@
+import supertest from 'supertest';
+const chai = require('chai');
+const chaiExpect = require('chai').expect;
+let apiResponse;
+
 class HomePage {
   obtainSelector(element) {
     let formattedElement = element.replace(/ |-/g, '_').toLowerCase();
@@ -173,52 +178,132 @@ class HomePage {
       let collectedText = getValueCollectorMap(inputValue.slice(5));
       inputValue = collectedText;
     }
-    if (inputValue === 'secret') {
-      inputValue = 'Cnsmw*wLL8K#^QHZI8Kk*Txu0XHv';
-    }
     await $(selector).waitForClickable();
     await $(selector).setValue(inputValue);
   }
 
-  async ioanaWakeUp() {
-    await browser.pause(3000);
-    await browser.url('https://www.chess.com/home');
-    await browser.execute(() => {
-      const messageBox = document.createElement('div');
-      messageBox.style.position = 'fixed';
-      messageBox.style.top = '50%';
-      messageBox.style.left = '50%';
-      messageBox.style.transform = 'translate(-50%, -50%)';
-      messageBox.style.padding = '20px';
-      messageBox.style.background = 'white';
-      messageBox.style.border = '1px solid #ccc';
-      messageBox.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-      messageBox.style.display = 'flex';
-      messageBox.style.flexDirection = 'column';
-      messageBox.style.alignItems = 'center';
+  /**
+   * This function sends an API request based on the provided parameters from an object. Please note that body is optional based of HTTP Request Method.
+   * If logResponse is set to 'true', it will log the response body in console. If you don't want to show the response, instead of setting it to false,
+   * just remove the line from the dataTable.
+   * @param {object} requestData = {
+    baseURL: 'https://dummyapi.io',
+    path: `/data/v1/user?limit=10`,
+    requestMethod: 'GET',
+    headers:
+      '{"Content-Type": "application/json", "app-id": "61f2af0aca5357648688193d"}',
+    logResponse: 'true'
+  };
+   *
+   * @returns {JSON} response
+   */
+  async sendApiRequest(requestData) {
+    const request = supertest(requestData.baseURL);
+    const headers = requestData.headers;
+    const payload = requestData.body;
+    const logResponse = requestData.logResponse;
 
-      const textContainer = document.createElement('div'); // Container for text
-      const text = document.createTextNode(
-        "Sorry bub, Ioana's busy right meow"
+    console.log(
+      `Sending a ${requestData.requestMethod} request to ${requestData.baseURL}${requestData.path}. Waiting for response from API...`
+    );
+    switch (requestData.requestMethod) {
+      case 'GET':
+        apiResponse = await request
+          .get(requestData.path)
+          .set(JSON.parse(headers));
+        break;
+      case 'POST':
+        apiResponse = await request
+          .post(requestData.path)
+          .set(JSON.parse(headers))
+          .send(JSON.parse(payload));
+        break;
+      case 'PUT':
+        apiResponse = await request
+          .put(requestData.path)
+          .set(JSON.parse(headers))
+          .send(JSON.parse(payload));
+        break;
+      case 'PATCH':
+        apiResponse = await request
+          .patch(requestData.path)
+          .set(JSON.parse(headers))
+          .send(JSON.parse(payload));
+        break;
+      case 'DELETE':
+        apiResponse = await request
+          .delete(requestData.path)
+          .set(JSON.parse(headers));
+        break;
+      default:
+        throw new Error(
+          'Wrong HTTP method provided. Only use one of the following: GET, POST, PUT, PATCH, DELETE.'
+        );
+    }
+    if (logResponse === 'true') {
+      console.log(
+        '↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ API Response ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓'
       );
-      textContainer.appendChild(text);
-      textContainer.style.marginBottom = '10px'; // Adjust the margin as needed
-      textContainer.style.fontSize = '18px'; // Set font size
-      textContainer.style.fontWeight = 'bold'; // Set font weight
-      textContainer.style.color = 'red'; // Set text color to red
+      console.log(apiResponse.body);
+    }
+    return apiResponse;
+  }
 
-      const image = document.createElement('img');
-      image.src = 'https://i.imgur.com/LRL9HLe.png'; // Replace with your image URL
-      image.alt = 'Image Description';
+  /**
+   * This function asserts that the response code received from the API is the desired one.
+   * The error will contain the response code and the response body.
+   * @param {number} code the expected response code (200, 201, 400, 403, 500 etc)
+   */
+  validateApiResponseCode(code) {
+    if (apiResponse.status != code) {
+      let responseBody = JSON.stringify(apiResponse.body);
+      throw new Error(
+        `Received response code ${apiResponse.status} but expected ${code}. Response body is: \n ${responseBody}`
+      );
+    } else {
+      console.log(`API Response Code: ${apiResponse.status}`);
+    }
+  }
 
-      messageBox.appendChild(textContainer); // Append the text container
-      messageBox.appendChild(image);
+  /**
+   * This function asserts that a property from the API response is equal to a specific value.
+   * @param {string} propertyName e.g. data[0].id or just id
+   * @param {string} expectedValue Can be a normal string, a number, null, or a collected value ("$Var.something") - we determine which it is using the clarifyExpectedValue() function
+   * @param {number} index Optional parameter which allows for specifying the index at which the json is to be found in the response object
+   */
+  validatePropertyHasSpecificValue(propertyName, expectedValue, index) {
+    expectedValue = this.clarifyExpectedValue(expectedValue);
+    const responseBody = apiResponse.body;
 
-      document.body.appendChild(messageBox);
-    });
+    if (index) {
+      chaiExpect(responseBody[index])
+        .to.have.nested.property(propertyName)
+        .to.equal(expectedValue);
+    } else {
+      chaiExpect(responseBody)
+        .to.have.nested.property(propertyName)
+        .to.equal(expectedValue);
+    }
+  }
 
-    // Add some delay to allow the message to be visible
-    await browser.pause(5000);
+  /**
+   * This function determines what expected value should be used in the validatePropertyHasSpecificValue() function
+   * @param {string} expectedValue Can be a normal string, a number, null, or a collected value ("$Var.something")
+   */
+  clarifyExpectedValue(expectedValue) {
+    // If expectedValue is a number, parse and return it
+    if (expectedValue / 1) {
+      expectedValue = parseFloat(expectedValue);
+      // If expectedValue is a collected value, retrieve and return it
+    } else if (expectedValue.includes('$Var.')) {
+      let collectedText = getValueCollectorMap(expectedValue.slice(5));
+      expectedValue = collectedText;
+      // If expectedValue is a "null" string, transform into the null value and return it
+    } else if (expectedValue == 'null') {
+      expectedValue = null;
+    }
+
+    return expectedValue;
   }
 }
 export default new HomePage();
