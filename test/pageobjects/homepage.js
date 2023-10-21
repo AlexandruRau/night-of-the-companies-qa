@@ -1,6 +1,5 @@
 import supertest from 'supertest';
-const chai = require('chai');
-const chaiExpect = require('chai').expect;
+import { expect as chaiExpect } from 'chai';
 let apiResponse;
 
 class HomePage {
