@@ -33,3 +33,4 @@ Feature: Homepage
         Then I validate that the "Email Field Error Message" is "not displayed"
         Then I validate that the "Username Field Error Message" is "not displayed"
         And I validate that the email was added to the list successfully
+        Then I validate that the email was added to the list successfully
