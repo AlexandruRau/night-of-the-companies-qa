@@ -18,7 +18,7 @@ Then(
 
 When(/^I click on the "([^"]*)"$/, async function (element) {
   await HomePage.clickOnElement(element);
-  await browser.pause(1000);
+  await browser.pause(2000);
 });
 
 When(/^I clear the value from the "([^"]*)"$/, async function (element) {
@@ -28,6 +28,7 @@ When(/^I clear the value from the "([^"]*)"$/, async function (element) {
 Then(
   /^I validate that the "([^"]*)" "([^"]*)" reads: "([^"]*)"$/,
   async function (element, type, expectedText) {
+    await browser.pause(2000);
     await HomePage.validateExpectedTextOnElement(element, type, expectedText);
   }
 );
@@ -73,5 +74,32 @@ Then(
       expectedValue,
       index
     );
+  }
+);
+
+When(
+  /^I store the "([^"]*)" of the "([^"]*)" inside "([^"]*)" property$/,
+  async function (storeType, element, key) {
+    await HomePage.storeElementText(storeType, element, key);
+  }
+);
+
+When(/^I write a random name in the username field$/, async function () {
+  await browser.pause(2000);
+  await HomePage.fillUsernameField();
+  await browser.pause(2000);
+});
+
+When(/^I write a random email in the email field$/, async function () {
+  await browser.pause(2000);
+  await HomePage.fillEmailField();
+  await browser.pause(2000);
+});
+
+Then(
+  /^I validate that the email was added to the list successfully$/,
+  async function () {
+    await HomePage.validateNewlyCreatedUser();
+    await browser.pause(3000);
   }
 );

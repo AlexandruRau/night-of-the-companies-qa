@@ -1,5 +1,7 @@
 import supertest from 'supertest';
 import { expect as chaiExpect } from 'chai';
+
+let collectorMap = [];
 let apiResponse;
 
 class HomePage {
@@ -7,21 +9,17 @@ class HomePage {
     let formattedElement = element.replace(/ |-/g, '_').toLowerCase();
 
     return {
+      title: 'h1',
+      create_user_button: "[type='button']",
+      username_field_error_message: "[id='username-helper-text']",
       username_field: "[id='username']",
-      password_field: "[id='password']",
-      login_button: "[id='login']",
-      new_game_button: "[class*='play-quick'] a:nth-child(2)",
-      custom_dropdown: "button[class*='toggle-custom']",
-      opponent_button: "[class*='custom-game-validation']",
-      opponent_field: "[data-cy='user-selector-username-']",
-      play_button: "[data-cy='new-game-index-play']",
+      email_field_error_message: "[id='email-helper-text']",
+      email_field: "[id='email']",
     }[formattedElement];
   }
 
   async openURL(url) {
     await browser.url(url);
-    await $("[class*='type_accept']").waitForClickable();
-    await $("[class*='type_accept']").click();
   }
 
   /**
@@ -83,7 +81,16 @@ class HomePage {
 
   async clearValue(element) {
     const selector = this.obtainSelector(element);
-    await $(selector).clearValue();
+    // await $(selector).clearValue();
+    await this.clickOnElement(element);
+
+    while ((await $(selector).getValue()) !== '') {
+      await browser.keys('Delete');
+      await browser.keys('Backspace');
+    }
+    // await browser.pause(1000);
+    // await browser.keys('Tab');
+    // await browser.pause(1000);
   }
 
   /**
@@ -93,7 +100,7 @@ class HomePage {
   async validateExpectedTextOnElement(element, type, expectedText) {
     const selector = this.obtainSelector(element);
     if (expectedText.includes('$Var.')) {
-      let collectedText = getValueCollectorMap(expectedText.slice(5));
+      let collectedText = this.getValueCollectorMap(expectedText.slice(5));
       expectedText = collectedText;
     }
 
@@ -199,12 +206,14 @@ class HomePage {
   async sendApiRequest(requestData) {
     const request = supertest(requestData.baseURL);
     const headers = requestData.headers;
+    console.log(headers);
     const payload = requestData.body;
     const logResponse = requestData.logResponse;
 
     console.log(
       `Sending a ${requestData.requestMethod} request to ${requestData.baseURL}${requestData.path}. Waiting for response from API...`
     );
+    console.log(`The payload is: ${payload}`);
     switch (requestData.requestMethod) {
       case 'GET':
         apiResponse = await request
@@ -295,7 +304,7 @@ class HomePage {
       expectedValue = parseFloat(expectedValue);
       // If expectedValue is a collected value, retrieve and return it
     } else if (expectedValue.includes('$Var.')) {
-      let collectedText = getValueCollectorMap(expectedValue.slice(5));
+      let collectedText = this.getValueCollectorMap(expectedValue.slice(5));
       expectedValue = collectedText;
       // If expectedValue is a "null" string, transform into the null value and return it
     } else if (expectedValue == 'null') {
@@ -303,6 +312,115 @@ class HomePage {
     }
 
     return expectedValue;
+  }
+
+  /**
+   * This function assigns a value to a property within collectorMap
+   * object, so that the value might be retrieved and used later. Useful
+   * when you need to collect a value and use it later on, maybe
+   * in a different class.
+   *
+   * @param {string} collectorKey
+   * @param {string} collectorValue
+   */
+  collect(collectorKey, collectorValue) {
+    if (collectorKey.includes(' ')) {
+      throw new Error('Property names should not include spaces!');
+    }
+    collectorMap[collectorKey] = collectorValue;
+  }
+  /**
+   * This function retrieves a value from the collectorMap object
+   * in order to be used. It needs only one parameter, the collectorKey
+   * which was used to store the value previously.
+   * @param {string} collectorKey
+   */
+  getValueCollectorMap(collectorKey) {
+    if (collectorMap[collectorKey] == undefined) {
+      throw new Error(
+        `No stored property in collectorMap under ${collectorKey}`
+      );
+    }
+    return collectorMap[collectorKey];
+  }
+
+  /**
+   * Stores the text from the provided element.
+   * @param {string} storeType "text" or "value". Text from inputs can only be collected with getValue()
+   * @param {string} element a selector, defined in hooks.js, e.g. "Login Button"
+   * @param {string} page a string that is used for a switch case in hooks.js to group selectors more efficiently, e.g. "Homepage"
+   * @param {string} key a string which will be used as the key for the collected text. e.g. "firstUsername"
+   */
+  async storeElementText(storeType, element, key) {
+    const selector = this.obtainSelector(element);
+    let elementText;
+
+    switch (storeType) {
+      case 'text':
+        elementText = await $(selector).getText();
+        break;
+      case 'value':
+        elementText = await $(selector).getValue();
+        break;
+      default:
+        throw new Error(
+          'Wrong storeType provided. Please only use "text" and "value" as parameters.'
+        );
+    }
+
+    collect(key, elementText.replace(/(\r\n|\n|\r)/gm, ' '));
+  }
+
+  generateStringWithVariableLength(min, max) {
+    const characters = 'abcdefghijklmnopqrstuvwxyz';
+    const chosenRange = this.generateRandomNumberInRange(min, max);
+    let result = '';
+    for (let i = 0; i < chosenRange; i++) {
+      result += characters.charAt(
+        Math.floor(Math.random() * characters.length)
+      );
+    }
+    return result;
+  }
+
+  /**
+   * Returns a random integer between min (inclusive) and max (inclusive).
+   * The value is no lower than min (or the next integer greater than min
+   * if min isn't an integer) and no greater than max (or the next integer
+   * lower than max if max isn't an integer).
+   * Using Math.round() will give you a non-uniform distribution!
+   */
+  generateRandomNumberInRange(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  async fillUsernameField() {
+    const selector = "[id='username']";
+    let randomUsername = this.generateStringWithVariableLength(1, 10);
+    await $(selector).setValue(randomUsername);
+    this.collect('storedUsername', randomUsername);
+    console.log(`Created the following email: ${randomUsername}`);
+  }
+
+  async fillEmailField() {
+    const selector = "[id='email']";
+    let randomBase = this.generateStringWithVariableLength(1, 10);
+    let randomEmail = randomBase + '@qatest.com';
+    await $(selector).setValue(randomEmail);
+    this.collect('storedEmail', randomEmail);
+    console.log(`Created the following email: ${randomEmail}`);
+  }
+
+  async validateNewlyCreatedUser() {
+    let expectedUsername = this.getValueCollectorMap('storedUsername');
+    let expectedEmail = this.getValueCollectorMap('storedEmail');
+    let lastUsernameInList =
+      "ul li:nth-last-child(1) span[class*='MuiTypography']";
+    let lastEmailInList = 'ul li:nth-last-child(1) p';
+    await expect($(lastUsernameInList)).toHaveText(expectedUsername);
+    await expect($(lastEmailInList)).toHaveText(expectedEmail);
   }
 }
 export default new HomePage();
